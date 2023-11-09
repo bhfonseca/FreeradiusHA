@@ -1,0 +1,922 @@
+
+########################==================== INICIANDO COM A REPLICAÇÃO DE BANCO - MASTER x MASTER ====================########################
+
+
+https://github.com/totatca/master-master-replication-on-Ubuntu
+
+
+No primeiro Servidor(192.168.34.4):
+
+/////////////////////// PASSO_1 (SERVER_1)\\\\\\\\\\\\\\\\\\\\\\\\
+
+No caminho do MASTER-1: /etc/mysql/mariadb.conf.d/50-server.cnf
+
+Deixar nesse padrão:
+
+#############################################
+bind-address 	= IP-of-Master-Server-1
+server-id	= 1
+log_bin		= /var/log/mysql/mariadb-bin
+log_bin_index	= /var/log/mysql/mariadb-bin.index
+relay_log	= /var/log/mysql/relay-bin
+relay_log_index	= /var/log/mysql/relay-bin.index
+
+#############################################
+
+/////////////////////// PASSO_2 (SERVER_1)\\\\\\\\\\\\\\\\\\\\\\\\
+
+service mariadb restart
+
+service mysql restart
+
+mysql -u root -p
+
+MariaDB [(none)]> show master status\G;
+*************************** 1. row ***************************
+            File: mariadb-bin.000001
+        Position: 330
+    Binlog_Do_DB: 
+Binlog_Ignore_DB: 
+1 row in set (0.000 sec)
+
+ERROR: No query specified
+
+
+#############################################
+
+Criar um usuario e dar permissão para o IP do SERVER_2 conseguir acessar o MASTER-1;
+
+
+MariaDB [(none)]> CREATE USER 'repl'@'%' IDENTIFIED BY 'cp82i83';
+Query OK, 0 rows affected (0.002 sec)
+
+MariaDB [(none)]> GRANT REPLICATION SLAVE ON  *.* TO 'repl'@'%';
+Query OK, 0 rows affected (0.001 sec)
+
+MariaDB [(none)]> FLUSH PRIVILEGES;
+
+/////////////////////// PASSO_4 (SERVER_2) \\\\\\\\\\\\\\\\\\\\\\\\
+
+No segundo servidor (192.168.32.190) - Instalar(OBS: melhorar script instalacao servicos):
+
+
+Banco de Dados:
+
+
+function instalamysql () {
+
+	apt install mariadb-server -y;
+    
+	if [ "$(head -n1 /etc/mysql/mariadb.conf.d/*-server.cnf | grep -c ixcsoft.1)" -eq 0 ]; then
+	      sed -i "1s/^/#ixcsoft.1\n/" /etc/mysql/mariadb.conf.d/*-server.cnf;
+	      sed -i 's/max_allowed_packet.*=*16M/max_allowed_packet = 256M/' /etc/mysql/mariadb.conf.d/*-server.cnf;
+	      sed -i '/max_allowed_packet/a innodb_log_file_size = 256M' /etc/mysql/mariadb.conf.d/*-server.cnf;
+	      sed -i '/max_allowed_packet/a innodb_buffer_pool_size = 2G' /etc/mysql/mariadb.conf.d/*-server.cnf;
+	      sed -i '/max_allowed_packet/a sql_mode = ""' /etc/mysql/mariadb.conf.d/*-server.cnf;
+	      sed -i 's/#max_connections        = 100/max_connections = 300/' /etc/mysql/mariadb.conf.d/*-server.cnf;
+	            
+	fi
+	        
+	senhabanco=$(whiptail --passwordbox "SENHA DO BANCO" 8 78 --title "SENHA DO BANCO" 3>&1 1>&2 2>&3);
+	
+    mariadb --user="root" --execute="USE mysql;
+	UPDATE user SET password=PASSWORD('$senhabanco') WHERE User='root';
+	UPDATE user SET plugin='mysql_native_password';FLUSH PRIVILEGES;";
+	
+    mariadb --user="root" --password="$senhabanco" --execute="CREATE DATABASE ixcprovedor;";
+	
+    wget http://www.ixcsoft.com.br/atualizacoes/ixc_con_ind.sql
+	mv ixc_con_ind.sql /root/
+	mysql -u root --password="$senhabanco" ixcprovedor < /root/ixc_con_ind.sql
+	rm /root/ixc_con_ind.sql
+	
+    mariadb --user="root" --password="$senhabanco" --execute="USE mysql; CREATE USER 'root'@'127.0.0.1' IDENTIFIED BY '$senhabanco';
+	GRANT ALL PRIVILEGES ON * . * TO 'root'@'127.0.0.1';FLUSH PRIVILEGES;";
+	
+    mysql -u root --password="$senhabanco" -e "INSERT INTO usuarios ( id_grupo, nome, email, senha, id_caixa, recebimentos_dia_atual, lancamentos_dia_atual, vendedor_padrao, funcionario, caixa_fn_receber, status, filtra_setor, filtra_funcionario, desc_max_recebimento, desc_max_venda, token_push, crm_filtra_vendedor, pagamentos_dia_atual, enviar_monitoramento_host, acesso_webservice, qtde_liberacoes, tipo_alcada) VALUES ( 1, 'Teste', 'ixc@ixc.com', 'ixc@ixc.com', 0, 'N', 'S', 0, 0, 0, 'A', 'S', 'S', 0.00, 0.00, NULL, 'N', 'N', 'N', 'S', 1, 'ADM');" ixcprovedor;
+    
+	whiptail --title "IXCSOFT" --msgbox "Processo finalizado, restaure o dump do banco \nUsuario IXCPROVEDOR: \nLogin: ixc@ixc.com \nSenha: ixc@ixc.com "  --fb 15 80  3>&1 1>&2 2>&3;
+    
+	systemctl restart mysql;
+	echo " ";
+	echo "Service MYSQL Status";
+	echo " ";
+	systemctl status mysql;
+
+}
+
+instalamysql;
+
+    
+#############################################
+
+Freeradius:
+
+   
+Fazer script de instlação
+    
+#############################################
+
+
+/////////////////////// PASSO_5 (SERVER_2) \\\\\\\\\\\\\\\\\\\\\\\\
+
+No caminho do MASTER-2: /etc/mysql/mariadb.conf.d/50-server.cnf
+
+Deixar nesse padrão:
+
+#############################################
+bind-address 	= IP-of-Master-Server-2
+server-id	= 2
+log_bin		= /var/log/mysql/mariadb-bin
+log_bin_index	= /var/log/mysql/mariadb-bin.index
+relay_log	= /var/log/mysql/relay-bin
+relay_log_index	= /var/log/mysql/relay-bin.index
+#############################################
+
+
+/////////////////////// PASSO_6 (SERVER_2) \\\\\\\\\\\\\\\\\\\\\\\\
+
+No banco do MASTER-2:
+
+service mariadb restart
+
+service mysql restart
+
+mysql -u root -p
+
+MariaDB [(none)]> show master status\G;
+*************************** 1. row ***************************
+            File: mysql-bin.000001
+        Position: 768
+    Binlog_Do_DB: 
+Binlog_Ignore_DB: 
+1 row in set (0.000 sec)
+
+ERROR: No query specified
+
+#############################################
+
+Criar um usuario e dar permissão para o IP do SERVIDOR-1  conseguir acessar o MASTER_2;
+
+
+MariaDB [(none)]> CREATE USER 'repl'@'%' IDENTIFIED BY 'cp82i83';
+Query OK, 0 rows affected (0.002 sec)
+
+MariaDB [(none)]> GRANT REPLICATION SLAVE ON  *.* TO 'repl'@'%';
+Query OK, 0 rows affected (0.001 sec)
+
+MariaDB [(none)]> FLUSH PRIVILEGES;
+
+/////////////////////// PASSO_7(SERVER_2) \\\\\\\\\\\\\\\\\\\\\\\\
+
+No banco do MASTER_2, executar os comandos referente ao banco do SERVIDOR_1:
+
+
+MariaDB [(none)]> stop slave;
+
+
+MariaDB [(none)]> CHANGE MASTER TO 
+MASTER_HOST='192.168.27.227', 
+MASTER_USER='repl', 
+MASTER_PASSWORD='cp82i83', 
+MASTER_LOG_FILE='mariadb-bin.000042', 
+MASTER_LOG_POS=547918;
+
+
+MariaDB [(none)]> start slave;
+
+MariaDB [(none)]> show slave status\G;
+*************************** 1. row ***************************
+                Slave_IO_State: Waiting for master to send event
+                   Master_Host: 192.168.32.119
+                   Master_User: repl
+                   Master_Port: 3306
+                 Connect_Retry: 60
+               Master_Log_File: mariadb-bin.000003
+           Read_Master_Log_Pos: 344
+                Relay_Log_File: relay-bin.000002
+                 Relay_Log_Pos: 557
+         Relay_Master_Log_File: mariadb-bin.000003
+              Slave_IO_Running: Yes
+             Slave_SQL_Running: Yes
+
+
+/////////////////////// PASSO_8 (SERVER_1) \\\\\\\\\\\\\\\\\\\\\\\\
+
+No banco do SERVIDOR_1, executar os comandos referente ao banco do SERVIDOR_2:
+
+
+MariaDB [(none)]> stop slave;
+
+
+MariaDB [(none)]> CHANGE MASTER TO 
+MASTER_HOST='192.168.32.190', 
+MASTER_USER='repl', 
+MASTER_PASSWORD='cp82i83', 
+MASTER_LOG_FILE='mariadb-bin.000047', 
+MASTER_LOG_POS=344;
+
+
+MariaDB [(none)]> start slave;
+
+MariaDB [(none)]> show slave status \G;
+*************************** 1. row ***************************
+                Slave_IO_State: Waiting for master to send event
+                   Master_Host: 192.168.32.190
+                   Master_User: repl
+                   Master_Port: 3306
+                 Connect_Retry: 60
+               Master_Log_File: mariadb-bin.000002
+           Read_Master_Log_Pos: 768
+                Relay_Log_File: relay-bin.000002
+                 Relay_Log_Pos: 557
+         Relay_Master_Log_File: mariadb-bin.000002
+              Slave_IO_Running: Yes
+             Slave_SQL_Running: Yes
+
+ 
+/////////////////////// ------------------- \\\\\\\\\\\\\\\\\\\\\\\\
+
+
+USER COM PERMISSÃO TOTAL - para acesso remoto aos bancos:
+ 
+create user 'ixc2'@'%' identified by '123';
+
+GRANT RELOAD, SUPER ON *.* TO `ixc2`@`%` IDENTIFIED BY '123';
+GRANT all ON mysql.* TO `ixc2`@`%` WITH GRANT OPTION;
+GRANT all ON ixcprovedor.* TO `ixc2`@`%` WITH GRANT OPTION;
+
+FLUSH PRIVILEGES;
+ 
+
+########################==================== INICIANDO COM A REPLICAÇÃO DO FREERADIUS ====================########################
+
+
+/etc/freeradius/3.0/radiusd.conf
+
+
+instantiate {
+
+
+	redundant-load-balance redundant_sql{
+		server_1
+		server_2
+	}
+
+
+
+	redundant-load-balance redundant_sqlippool {
+		sqlip_1
+		sqlip_2
+	}
+	
+	redundant-load-balance redundant_nasAut {
+	ixcsoft_sql_1
+	ixcsoft_sql_2
+	}
+	
+}
+
+==================================================
+
+etc/freeradius/3.0/mods-enabled/sql
+
+sql server_1 {
+	driver = "rlm_sql_mysql"
+	dialect = "mysql"
+	server = "localhost"
+	port = 3306
+	login = "ixc"
+password = "123"
+	radius_db = "ixcprovedor"
+
+	acct_table1 	 = "radacct"
+	acct_table2 	 = "radacct"
+	postauth_table   = "radpostauth"
+	authcheck_table  = "radcheck"
+	groupcheck_table = "radgroupcheck"
+	authreply_table  = "radreply"
+	groupreply_table = "radgroupreply"
+	usergroup_table  = "radusergroup"
+
+	delete_stale_sessions = yes
+	#logfile = ${logdir}/sqllog.sql
+
+	pool {
+		start = ${thread[pool].start_servers}
+		min = ${thread[pool].min_spare_servers}
+		max = ${thread[pool].max_servers}
+		spare = ${thread[pool].max_spare_servers}
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+
+	read_clients = yes
+	client_table = "nas"
+	group_attribute = "${.:instance}-SQL-Group"
+	$INCLUDE ${modconfdir}/${.:name}/main/${dialect}/queries.conf
+}
+
+
+sql server_2 {
+	driver = "rlm_sql_mysql"
+	dialect = "mysql"
+	server = "192.168.27.227"
+	port = 3306
+	login = "ixc"
+password = "123"
+	radius_db = "ixcprovedor"
+
+	acct_table1 	 = "radacct"
+	acct_table2 	 = "radacct"
+	postauth_table   = "radpostauth"
+	authcheck_table  = "radcheck"
+	groupcheck_table = "radgroupcheck"
+	authreply_table  = "radreply"
+	groupreply_table = "radgroupreply"
+	usergroup_table  = "radusergroup"
+
+	delete_stale_sessions = yes
+	#logfile = ${logdir}/sqllog.sql
+
+	pool {
+		start = ${thread[pool].start_servers}
+		min = ${thread[pool].min_spare_servers}
+		max = ${thread[pool].max_servers}
+		spare = ${thread[pool].max_spare_servers}
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+
+	read_clients = yes
+	client_table = "nas"
+	group_attribute = "${.:instance}-SQL-Group"
+	$INCLUDE ${modconfdir}/${.:name}/main/${dialect}/queries.conf
+
+	}
+
+
+
+#######################################################################
+
+
+
+sql ixcsoft_sql_1 {
+	driver = "rlm_sql_mysql"
+    dialect = "mysql"
+server = "127.0.0.1" 
+    port = 3306
+    login = "ixc"
+ password = "123" 
+    radius_db = "ixcprovedor"
+
+    acct_table1 	 = "radauth_radacct"
+    acct_table2 	 = "radauth_radacct"
+    postauth_table 	 = "radauth_radpostauth"
+    authcheck_table  = "radauth_radcheck"
+    groupcheck_table = "radauth_radgroupcheck"
+    authreply_table  = "radauth_radreply"
+    groupreply_table = "radauth_radgroupreply"
+    usergroup_table  = "radauth_radusergroup"
+
+    delete_stale_sessions = yes
+    logfile = ${logdir}/sqllog.sql
+
+    pool {
+    	start = ${thread[pool].start_servers}
+        min = ${thread[pool].min_spare_servers}
+        max = ${thread[pool].max_servers}
+        spare = ${thread[pool].max_spare_servers}
+        uses = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+	}
+
+    read_clients = yes
+    client_table = "radauth_nas"
+    group_attribute = "${.:instance}-SQL-Group"
+    $INCLUDE ${modconfdir}/sql/main/mysql/queries.conf
+}
+
+
+sql ixcsoft_sql_2 {
+	driver = "rlm_sql_mysql"
+    dialect = "mysql"
+server = "192.168.27.227" 
+    port = 3306
+    login = "ixc"
+ password = "123" 
+    radius_db = "ixcprovedor"
+
+    acct_table1 	 = "radauth_radacct"
+    acct_table2 	 = "radauth_radacct"
+    postauth_table 	 = "radauth_radpostauth"
+    authcheck_table  = "radauth_radcheck"
+    groupcheck_table = "radauth_radgroupcheck"
+    authreply_table  = "radauth_radreply"
+    groupreply_table = "radauth_radgroupreply"
+    usergroup_table  = "radauth_radusergroup"
+
+    delete_stale_sessions = yes
+    logfile = ${logdir}/sqllog.sql
+
+    pool {
+    	start = ${thread[pool].start_servers}
+        min = ${thread[pool].min_spare_servers}
+        max = ${thread[pool].max_servers}
+        spare = ${thread[pool].max_spare_servers}
+        uses = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+	}
+
+    read_clients = yes
+    client_table = "radauth_nas"
+    group_attribute = "${.:instance}-SQL-Group"
+    $INCLUDE ${modconfdir}/sql/main/mysql/queries.conf
+}
+
+
+
+==================================================
+
+etc/freeradius/3.0/mods-enabled/sqlipool
+
+
+
+sqlippool sqlip_1{
+
+	sql_module_instance = "server_1"
+	dialect = "mysql"
+	ippool_table = "radippool"
+	lease_duration = 3600
+#	ipv6 = yes
+	pool_key = "%{Calling-Station-Id}"
+
+	allocate_clear = "UPDATE radippool SET nasipaddress = '', \
+	pool_key = '', callingstationid = '', calledstationid = '', \
+	username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE callingstationid = 'D1'"
+	
+	allocate_find = "SELECT framedipaddress FROM radippool \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}' \
+	LIMIT 1 FOR UPDATE"
+	
+	pool_check = "SELECT id FROM radippool WHERE pool_name='%{control:Pool-Name}' LIMIT 1"
+	
+	allocate_update = "UPDATE radippool SET \
+	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+	calledstationid = '%{Called-Station-Id}', \
+	callingstationid = '%{Calling-Station-Id}',\
+	status = 'O',\
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}'"
+		
+	start_update = "UPDATE radippool SET \
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}'"
+	
+	
+	stop_clear = "UPDATE radippool SET \
+    	expiry_time = NOW() + INTERVAL 600 SECOND, \
+    	calledstationid = '', \
+    	callingstationid = '', \
+    	pool_key = '',\
+    	nasipaddress = '', status = 'R' \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	alive_update = "UPDATE radippool SET \
+    	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+    	calledstationid = '%{Called-Station-Id}', \
+    	callingstationid = '%{Calling-Station-Id}',\
+    	status = 'O',\
+    	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	on_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+	
+	
+	off_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+
+	messages {
+		exists = "Existing IP: %{reply:Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		success = "Allocated IP: %{reply:Framed-IP-Address} from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		clear = "Released IP %{Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} user %{User-Name})"
+
+		failed = "IP Allocation FAILED from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		nopool = "No Pool-Name defined (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+	}
+}
+
+
+
+
+
+sqlippool sqlip_2{
+
+	sql_module_instance = "server_2"
+	dialect = "mysql"
+	ippool_table = "radippool"
+	lease_duration = 3600
+#	ipv6 = yes
+	pool_key = "%{Calling-Station-Id}"
+
+	allocate_clear = "UPDATE radippool SET nasipaddress = '', \
+	pool_key = '', callingstationid = '', calledstationid = '', \
+	username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE callingstationid = 'D1'"
+	
+	allocate_find = "SELECT framedipaddress FROM radippool \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}' \
+	LIMIT 1 FOR UPDATE"
+	
+	pool_check = "SELECT id FROM radippool WHERE pool_name='%{control:Pool-Name}' LIMIT 1"
+	
+	allocate_update = "UPDATE radippool SET \
+	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+	calledstationid = '%{Called-Station-Id}', \
+	callingstationid = '%{Calling-Station-Id}',\
+	status = 'O',\
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}'"
+		
+	start_update = "UPDATE radippool SET \
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}'"
+	
+	
+	stop_clear = "UPDATE radippool SET \
+    	expiry_time = NOW() + INTERVAL 600 SECOND, \
+    	calledstationid = '', \
+    	callingstationid = '', \
+    	pool_key = '',\
+    	nasipaddress = '', status = 'R' \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	alive_update = "UPDATE radippool SET \
+    	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+    	calledstationid = '%{Called-Station-Id}', \
+    	callingstationid = '%{Calling-Station-Id}',\
+    	status = 'O',\
+    	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	on_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+	
+	
+	off_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+
+	messages {
+		exists = "Existing IP: %{reply:Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		success = "Allocated IP: %{reply:Framed-IP-Address} from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		clear = "Released IP %{Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} user %{User-Name})"
+
+		failed = "IP Allocation FAILED from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		nopool = "No Pool-Name defined (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+	}
+}
+
+
+
+
+
+
+
+==================================================
+/etc/freeradius/3.0/sites-enabled/default
+
+server default {
+
+	listen {
+		type = auth
+		ipaddr = *
+		port = 0
+		limit {
+	    	max_connections = 16
+	        lifetime = 0
+	        idle_timeout = 30
+		}
+	}
+
+	listen {
+		ipaddr = *
+		port = 0
+		type = acct
+
+		limit {
+
+		}
+	}
+
+	listen {
+		type = auth
+		ipv6addr = ::
+		port = 0
+		limit {
+	    	max_connections = 16
+	        lifetime = 0
+	        idle_timeout = 30
+		}
+	}
+
+	listen {
+		ipv6addr = ::
+		port = 0
+		type = acct
+
+		limit {
+
+		}
+	}
+
+# Modulo de autorizacao
+
+	authorize {
+
+		redundant_sql
+
+
+		ixcsoft_remove_spaco
+		ixcsoft_mac
+		ixcsoft_ssid
+		if(%{Called-Station-SSID} != ''){
+        		if("%{redundant_sql:SELECT COUNT(*) FROM `radcheck` WHERE username = '%{User-Name}' AND value = '%{Called-Station-SSID}'}" >= 1){
+            			update control {
+                			Auth-Type := Accept
+                		}
+        		}
+        	}
+		#sql
+
+
+		preprocess
+		chap
+		mschap
+		eap {
+			ok = return
+		}
+		expiration
+		logintime
+		pap
+	}
+
+# Modulo de autenticacao
+
+	authenticate {
+
+		Auth-Type PAP {
+			pap
+		}
+
+		Auth-Type CHAP {
+			chap
+		}
+
+		Auth-Type MS-CHAP {
+			mschap
+		}
+		mschap
+		eap
+	}
+
+# Modulo de Pre-Contabilidade
+
+	preacct {
+		ixcsoft_remove_spaco
+		ixcsoft_mac
+		preprocess
+		update request {
+                        FreeRADIUS-Acct-Session-Start-Time = "%{expr: %l - %{%{Acct-Session-Time}:-0} - %{%{Acct-Delay-Time}:-0}}"
+                }
+		acct_unique
+	}
+
+# Modulo de Contabilidade
+
+	accounting {
+		
+		redundant_sql		
+		redundant_sqlippool
+
+		#sqlippool
+		if (noop) {
+                        ok
+                }
+		unix
+		exec
+		attr_filter.accounting_response
+	}
+
+# Modulo de Sessao
+
+	session {
+
+		redundant_sql
+
+		radutmp
+	}
+
+# Modulo de Pos-Autenticacao
+
+	post-auth {
+
+		redundant_sql
+
+		if(&control:Pool-Name != '') {
+			#ixcsoft
+			#sqlippool
+			redundant_sqlippool
+		}
+
+		update {
+			&reply: += &session-state:
+		}
+
+		remove_reply_message_if_eap
+
+		Post-Auth-Type REJECT {
+			attr_filter.access_reject
+			eap
+			remove_reply_message_if_eap
+		}
+	}
+
+# Modulo de Pre-Proxy
+
+	pre-proxy {
+
+	}
+
+# Modulo de Proxy
+
+	post-proxy {
+		eap
+	}
+}
+
+
+====================================================================================
+
+/etc/freeradius/3.0/sites-enabled/ixcsoft
+server ixcsoft {
+	
+	listen {
+		
+		type = auth
+		ipaddr = *
+		port = 1814
+		
+		limit {
+		   	max_connections = 16
+		   	lifetime = 0
+		   	idle_timeout = 30
+		}
+	}
+
+	listen {
+	
+		type = acct
+		ipaddr = *
+		port = 1815
+		limit {
+			max_connections = 16
+			lifetime = 0
+			idle_timeout = 30
+		}
+	}
+
+	authorize {
+	
+		#ixcsoft_sql
+		redundant_nasAut
+
+		if(&request:NAS-Identifier == 'sshd'){
+			if("%{redundant_nasAut:SELECT COUNT(*) FROM `radauth_ips_autorizados` WHERE ip = '%{request:Calling-Station-Id}'}" > 0) {
+	        		if("%{redundant_nasAut:SELECT COUNT(*) FROM `radauth_radcheck` WHERE username = '%{request:User-Name}' and value = MD5('%{request:User-Password}')}" >= 1){
+	        			update control {
+	        				Auth-Type := Accept
+	        			}
+	        		}
+        		}
+			else {
+                        	update control {
+                               		Auth-Type := Reject
+                                }
+                        }
+        	}
+        
+		preprocess
+		chap
+		mschap
+		expiration
+		logintime
+		pap
+	}
+
+	authenticate {
+
+		Auth-Type PAP {
+			pap
+		}
+
+		Auth-Type CHAP {
+			chap
+		}
+
+		Auth-Type MS-CHAP {
+			mschap
+		}
+
+		mschap
+		eap
+	}
+
+	preacct {
+		preprocess
+		acct_unique
+	}
+
+	accounting {
+		#ixcsoft_sql
+		redundant_nasAut
+		unix
+		exec
+		attr_filter.accounting_response
+	}
+
+	session {
+		#ixcsoft_sql
+		redundant_nasAut
+		radutmp
+	}
+
+	post-auth {
+		#ixcsoft_sql
+		redundant_nasAut
+
+		update {
+			&reply: += &session-state:
+		}
+
+		exec
+		remove_reply_message_if_eap
+		Post-Auth-Type REJECT {
+			attr_filter.access_reject
+			eap
+			remove_reply_message_if_eap
+		}
+	}
+	
+	pre-proxy {
+
+	}
+	
+	post-proxy {
+		eap
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
