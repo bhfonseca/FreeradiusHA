@@ -1,0 +1,162 @@
+#root@lxcvgstyhGMNOm:~# cat /etc/freeradius/3.0/mods-enabled/sql
+sql server_1 {
+	driver = "rlm_sql_mysql"
+	dialect = "mysql"
+	server = "localhost"
+	port = 3306
+	login = "root"
+password = "cp82ip83"
+	radius_db = "ixcprovedor"
+
+	acct_table1 	 = "radacct"
+	acct_table2 	 = "radacct"
+	postauth_table   = "radpostauth"
+	authcheck_table  = "radcheck"
+	groupcheck_table = "radgroupcheck"
+	authreply_table  = "radreply"
+	groupreply_table = "radgroupreply"
+	usergroup_table  = "radusergroup"
+
+	delete_stale_sessions = yes
+	#logfile = ${logdir}/sqllog.sql
+
+	pool {
+		start = ${thread[pool].start_servers}
+		min = ${thread[pool].min_spare_servers}
+		max = ${thread[pool].max_servers}
+		spare = ${thread[pool].max_spare_servers}
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+
+	read_clients = yes
+	client_table = "nas"
+	group_attribute = "${.:instance}-SQL-Group"
+	$INCLUDE ${modconfdir}/${.:name}/main/${dialect}/queries.conf
+}
+
+
+sql server_2 {
+	driver = "rlm_sql_mysql"
+	dialect = "mysql"
+	server = "192.168.32.190"
+	port = 3306
+	login = "ixc"
+password = "123"
+	radius_db = "ixcprovedor"
+
+	acct_table1 	 = "radacct"
+	acct_table2 	 = "radacct"
+	postauth_table   = "radpostauth"
+	authcheck_table  = "radcheck"
+	groupcheck_table = "radgroupcheck"
+	authreply_table  = "radreply"
+	groupreply_table = "radgroupreply"
+	usergroup_table  = "radusergroup"
+
+	delete_stale_sessions = yes
+	#logfile = ${logdir}/sqllog.sql
+
+	pool {
+		start = ${thread[pool].start_servers}
+		min = ${thread[pool].min_spare_servers}
+		max = ${thread[pool].max_servers}
+		spare = ${thread[pool].max_spare_servers}
+		uses = 0
+		retry_delay = 30
+		lifetime = 0
+		idle_timeout = 60
+	}
+
+	read_clients = yes
+	client_table = "nas"
+	group_attribute = "${.:instance}-SQL-Group"
+	$INCLUDE ${modconfdir}/${.:name}/main/${dialect}/queries.conf
+
+	}
+
+
+
+###########################################################################
+
+
+
+
+sql ixcsoft_sql_1 {
+	driver = "rlm_sql_mysql"
+    dialect = "mysql"
+server = "127.0.0.1" 
+    port = 3306
+    login = "ixc"
+ password = "123" 
+    radius_db = "ixcprovedor"
+
+    acct_table1 	 = "radauth_radacct"
+    acct_table2 	 = "radauth_radacct"
+    postauth_table 	 = "radauth_radpostauth"
+    authcheck_table  = "radauth_radcheck"
+    groupcheck_table = "radauth_radgroupcheck"
+    authreply_table  = "radauth_radreply"
+    groupreply_table = "radauth_radgroupreply"
+    usergroup_table  = "radauth_radusergroup"
+
+    delete_stale_sessions = yes
+    logfile = ${logdir}/sqllog.sql
+
+    pool {
+    	start = ${thread[pool].start_servers}
+        min = ${thread[pool].min_spare_servers}
+        max = ${thread[pool].max_servers}
+        spare = ${thread[pool].max_spare_servers}
+        uses = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+	}
+
+    read_clients = yes
+    client_table = "radauth_nas"
+    group_attribute = "${.:instance}-SQL-Group"
+    $INCLUDE ${modconfdir}/sql/main/mysql/queries.conf
+}
+
+
+sql ixcsoft_sql_2 {
+	driver = "rlm_sql_mysql"
+    dialect = "mysql"
+server = "192.168.32.190" 
+    port = 3306
+    login = "ixc"
+ password = "123" 
+    radius_db = "ixcprovedor"
+
+    acct_table1 	 = "radauth_radacct"
+    acct_table2 	 = "radauth_radacct"
+    postauth_table 	 = "radauth_radpostauth"
+    authcheck_table  = "radauth_radcheck"
+    groupcheck_table = "radauth_radgroupcheck"
+    authreply_table  = "radauth_radreply"
+    groupreply_table = "radauth_radgroupreply"
+    usergroup_table  = "radauth_radusergroup"
+
+    delete_stale_sessions = yes
+    logfile = ${logdir}/sqllog.sql
+
+    pool {
+    	start = ${thread[pool].start_servers}
+        min = ${thread[pool].min_spare_servers}
+        max = ${thread[pool].max_servers}
+        spare = ${thread[pool].max_spare_servers}
+        uses = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+	}
+
+    read_clients = yes
+    client_table = "radauth_nas"
+    group_attribute = "${.:instance}-SQL-Group"
+    $INCLUDE ${modconfdir}/sql/main/mysql/queries.conf
+}
