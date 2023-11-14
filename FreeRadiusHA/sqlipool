@@ -1,0 +1,155 @@
+#etc/freeradius/3.0/mods-enabled/sqlipool
+
+sqlippool sqlip_1{
+
+	sql_module_instance = "server_1"
+	dialect = "mysql"
+	ippool_table = "radippool"
+	lease_duration = 3600
+#	ipv6 = yes
+	pool_key = "%{Calling-Station-Id}"
+
+	allocate_clear = "UPDATE radippool SET nasipaddress = '', \
+	pool_key = '', callingstationid = '', calledstationid = '', \
+	username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE callingstationid = 'D1'"
+	
+	allocate_find = "SELECT framedipaddress FROM radippool \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}' \
+	LIMIT 1 FOR UPDATE"
+	
+	pool_check = "SELECT id FROM radippool WHERE pool_name='%{control:Pool-Name}' LIMIT 1"
+	
+	allocate_update = "UPDATE radippool SET \
+	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+	calledstationid = '%{Called-Station-Id}', \
+	callingstationid = '%{Calling-Station-Id}',\
+	status = 'O',\
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}'"
+		
+	start_update = "UPDATE radippool SET \
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}'"
+	
+	
+	stop_clear = "UPDATE radippool SET \
+    	expiry_time = NOW() + INTERVAL 600 SECOND, \
+    	calledstationid = '', \
+    	callingstationid = '', \
+    	pool_key = '',\
+    	nasipaddress = '', status = 'R' \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	alive_update = "UPDATE radippool SET \
+    	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+    	calledstationid = '%{Called-Station-Id}', \
+    	callingstationid = '%{Calling-Station-Id}',\
+    	status = 'O',\
+    	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	on_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+	
+	
+	off_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+
+	messages {
+		exists = "Existing IP: %{reply:Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		success = "Allocated IP: %{reply:Framed-IP-Address} from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		clear = "Released IP %{Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} user %{User-Name})"
+
+		failed = "IP Allocation FAILED from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		nopool = "No Pool-Name defined (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+	}
+}
+
+
+
+
+
+sqlippool sqlip_2{
+
+	sql_module_instance = "server_2"
+	dialect = "mysql"
+	ippool_table = "radippool"
+	lease_duration = 3600
+#	ipv6 = yes
+	pool_key = "%{Calling-Station-Id}"
+
+	allocate_clear = "UPDATE radippool SET nasipaddress = '', \
+	pool_key = '', callingstationid = '', calledstationid = '', \
+	username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE callingstationid = 'D1'"
+	
+	allocate_find = "SELECT framedipaddress FROM radippool \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}' \
+	LIMIT 1 FOR UPDATE"
+	
+	pool_check = "SELECT id FROM radippool WHERE pool_name='%{control:Pool-Name}' LIMIT 1"
+	
+	allocate_update = "UPDATE radippool SET \
+	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+	calledstationid = '%{Called-Station-Id}', \
+	callingstationid = '%{Calling-Station-Id}',\
+	status = 'O',\
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}' and pool_name='%{control:Pool-Name}'"
+		
+	start_update = "UPDATE radippool SET \
+	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+	WHERE username = '%{User-Name}'"
+	
+	
+	stop_clear = "UPDATE radippool SET \
+    	expiry_time = NOW() + INTERVAL 600 SECOND, \
+    	calledstationid = '', \
+    	callingstationid = '', \
+    	pool_key = '',\
+    	nasipaddress = '', status = 'R' \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	alive_update = "UPDATE radippool SET \
+    	nasipaddress = '%{NAS-IP-Address}', pool_key = '${pool_key}', \
+    	calledstationid = '%{Called-Station-Id}', \
+    	callingstationid = '%{Calling-Station-Id}',\
+    	status = 'O',\
+    	expiry_time = NOW() + INTERVAL ${lease_duration} SECOND \
+    	WHERE username = '%{User-Name}' and framedipaddress = '%{Framed-IP-Address}'"
+	
+	
+	on_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+	
+	
+	off_clear = "UPDATE radippool SET \
+	nasipaddress = '', pool_key = '', callingstationid = '', \
+	calledstationid = '', username = '', expiry_time = '0000-00-00 00:00:00' \
+	WHERE nasipaddress = 'D1'"
+
+	messages {
+		exists = "Existing IP: %{reply:Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		success = "Allocated IP: %{reply:Framed-IP-Address} from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		clear = "Released IP %{Framed-IP-Address} (did %{Called-Station-Id} cli %{Calling-Station-Id} user %{User-Name})"
+
+		failed = "IP Allocation FAILED from %{control:Pool-Name} (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+
+		nopool = "No Pool-Name defined (did %{Called-Station-Id} cli %{Calling-Station-Id} port %{NAS-Port} user %{User-Name})"
+	}
+}
