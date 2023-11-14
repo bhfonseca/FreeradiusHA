@@ -1,0 +1,118 @@
+#root@lxcogmSxzJUBFt:/etc/freeradius/3.0# cat sites-enabled/ixcsoft 
+server ixcsoft {
+	
+	listen {
+		
+		type = auth
+		ipaddr = *
+		port = 1814
+		
+		limit {
+		   	max_connections = 16
+		   	lifetime = 0
+		   	idle_timeout = 30
+		}
+	}
+
+	listen {
+	
+		type = acct
+		ipaddr = *
+		port = 1815
+		limit {
+			max_connections = 16
+			lifetime = 0
+			idle_timeout = 30
+		}
+	}
+
+	authorize {
+	
+		#ixcsoft_sql
+		redundant_nasAut
+
+		if(&request:NAS-Identifier == 'sshd'){
+			if("%{redundant_nasAut:SELECT COUNT(*) FROM `radauth_ips_autorizados` WHERE ip = '%{request:Calling-Station-Id}'}" > 0) {
+	        		if("%{redundant_nasAut:SELECT COUNT(*) FROM `radauth_radcheck` WHERE username = '%{request:User-Name}' and value = MD5('%{request:User-Password}')}" >= 1){
+	        			update control {
+	        				Auth-Type := Accept
+	        			}
+	        		}
+        		}
+			else {
+                        	update control {
+                               		Auth-Type := Reject
+                                }
+                        }
+        	}
+        
+		preprocess
+		chap
+		mschap
+		expiration
+		logintime
+		pap
+	}
+
+	authenticate {
+
+		Auth-Type PAP {
+			pap
+		}
+
+		Auth-Type CHAP {
+			chap
+		}
+
+		Auth-Type MS-CHAP {
+			mschap
+		}
+
+		mschap
+		eap
+	}
+
+	preacct {
+		preprocess
+		acct_unique
+	}
+
+	accounting {
+		#ixcsoft_sql
+		redundant_nasAut
+		unix
+		exec
+		attr_filter.accounting_response
+	}
+
+	session {
+		#ixcsoft_sql
+		redundant_nasAut
+		radutmp
+	}
+
+	post-auth {
+		#ixcsoft_sql
+		redundant_nasAut
+
+		update {
+			&reply: += &session-state:
+		}
+
+		exec
+		remove_reply_message_if_eap
+		Post-Auth-Type REJECT {
+			attr_filter.access_reject
+			eap
+			remove_reply_message_if_eap
+		}
+	}
+	
+	pre-proxy {
+
+	}
+	
+	post-proxy {
+		eap
+	}
+}
