@@ -1,0 +1,179 @@
+#root@lxcogmSxzJUBFt:/etc/freeradius/3.0# cat sites-enabled/default 
+server default {
+
+	listen {
+		type = auth
+		ipaddr = *
+		port = 0
+		limit {
+	    	max_connections = 16
+	        lifetime = 0
+	        idle_timeout = 30
+		}
+	}
+
+	listen {
+		ipaddr = *
+		port = 0
+		type = acct
+
+		limit {
+
+		}
+	}
+
+	listen {
+		type = auth
+		ipv6addr = ::
+		port = 0
+		limit {
+	    	max_connections = 16
+	        lifetime = 0
+	        idle_timeout = 30
+		}
+	}
+
+	listen {
+		ipv6addr = ::
+		port = 0
+		type = acct
+
+		limit {
+
+		}
+	}
+
+# Modulo de autorizacao
+
+	authorize {
+
+		redundant_sql
+
+		ixcsoft_remove_spaco
+		ixcsoft_mac
+		ixcsoft_ssid
+		if(%{Called-Station-SSID} != ''){
+        		if("%{redundant_sql:SELECT COUNT(*) FROM `radcheck` WHERE username = '%{User-Name}' AND value = '%{Called-Station-SSID}'}" >= 1){
+            			update control {
+                			Auth-Type := Accept
+                		}
+        		} 
+        	}
+		#sql
+		preprocess
+		chap
+		mschap
+		eap {
+			ok = return
+		}
+		expiration
+		logintime
+		pap
+	}
+
+# Modulo de autenticacao
+
+	authenticate {
+
+		Auth-Type PAP {
+			pap
+		}
+
+		Auth-Type CHAP {
+			chap
+		}
+
+		Auth-Type MS-CHAP {
+			mschap
+		}
+		mschap
+		eap
+	}
+
+# Modulo de Pre-Contabilidade
+
+	preacct {
+		ixcsoft_remove_spaco
+		ixcsoft_mac
+		ixcsoft_framed_route
+		preprocess
+		update request {
+                        FreeRADIUS-Acct-Session-Start-Time = "%{expr: %l - %{%{Acct-Session-Time}:-0} - %{%{Acct-Delay-Time}:-0}}"
+                }
+		acct_unique
+	}
+
+# Modulo de Contabilidade
+
+		accounting {
+	
+         	redundant_sql
+	
+		#sql
+		#sqlippool
+		redundant_sqlippool
+
+		if (noop) {
+                        ok
+                }
+		exec
+		attr_filter.accounting_response
+
+
+	}
+
+# Modulo de Sessao
+
+	session {
+		
+ 	        redundant_sql
+
+
+		#sql
+		radutmp
+	
+	}
+
+# Modulo de Pos-Autenticacao
+
+	post-auth {
+
+		#sql
+                redundant_sql
+
+
+
+		if(&control:Pool-Name != '') {
+			#ixcsoft
+			#sqlippool
+			redundant_sqlippool
+			}
+
+
+
+		update {
+			&reply: += &session-state:
+		}
+
+		remove_reply_message_if_eap
+
+		Post-Auth-Type REJECT {
+			attr_filter.access_reject
+			eap
+			remove_reply_message_if_eap
+		}
+
+}
+
+# Modulo de Pre-Proxy
+
+	pre-proxy {
+
+	}
+
+# Modulo de Proxy
+
+	post-proxy {
+		eap
+	}
+}
